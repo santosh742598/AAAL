@@ -305,7 +305,11 @@ if uploaded_file:
                 ac_regs = order_data['A/C Reg. No'].dropna().astype(str).str.strip().unique()
                 ac_text = ', '.join(ac_regs) if len(ac_regs) else "Not Available"
                 st.markdown(f"✈️ **Aircraft Reg. Involved**: {ac_text}")
-            
+
+                supplier = order_data['Supplier'].dropna().unique()
+                supplier_name = supplier[0] if len(supplier) == 1 else ', '.join(supplier)
+                st.markdown(f"🏢 **Supplier**: {supplier_name}")
+
                 # Line-level classification
                 def classify_line(row):
                     if row['GRN Qty'] == 0:
@@ -326,7 +330,7 @@ if uploaded_file:
             
                 # Show per item details
                 order_qty_info = order_data.drop_duplicates(subset=['Order No.', 'Part No.'])[
-                    ['Part No.', 'Supplier', 'Order Qty', 'Description']
+                    ['Part No.', 'Order Qty', 'Description']
                 ]
                 grn_sum = order_data.groupby(['Part No.'])['GRN Qty'].sum().reset_index()
             
