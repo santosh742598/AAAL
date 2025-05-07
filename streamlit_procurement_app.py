@@ -187,27 +187,53 @@ if uploaded_file:
 
 
 
-            elif "supplier" in q:
 
-                supplier_column = df['Supplier'].dropna().astype(str)
+
+
+            elif "supplier" in q:
 
                 query_cleaned = q.replace("supplier", "").strip().upper()
 
-                supplier_map = {s.upper(): s for s in supplier_column.unique()}
+                # Create a normalized Supplier column for matching
 
-                matches = [original for upper, original in supplier_map.items() if query_cleaned in upper]
+                df['Supplier_cleaned'] = df['Supplier'].astype(str).str.strip().str.upper()
 
-                if matches:
+                # Filter rows where cleaned supplier contains the query
 
-                    result = df[df['Supplier'] == matches[0]]
+                matched_rows = df[df['Supplier_cleaned'].str.contains(query_cleaned, na=False)]
 
-                    st.write(f"📋 Orders for Supplier: {matches[0]}")
+                if not matched_rows.empty:
 
-                    st.dataframe(result)
+                    actual_supplier = matched_rows['Supplier'].iloc[0]
+
+                    st.write(f"📋 Orders for Supplier: {actual_supplier}")
+
+                    # Columns you care about (can be adjusted)
+
+                    display_cols = [
+
+                        'Order No.', 'Supplier', 'Part No.', 'Description',
+
+                        'Order Qty', 'GRN Qty', 'QA Status',
+
+                        'MAWB No. / Consignment No./  Bill of Lading No.',
+
+                        'Mode of Transport'
+
+                    ]
+
+                    # Only show these columns if they exist in the DataFrame
+
+                    display_cols = [col for col in display_cols if col in matched_rows.columns]
+
+                    st.dataframe(matched_rows[display_cols])
 
                 else:
 
                     st.warning("❗ Supplier name not recognized in your question.")
+
+
+
 
 
 
