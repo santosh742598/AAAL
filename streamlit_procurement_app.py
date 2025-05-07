@@ -340,6 +340,9 @@ if uploaded_file:
                 grouped['Status'] = grouped.apply(classify_line, axis=1)
             
                 st.write(f"📦 Items under Order No: {q.upper()}")
+                # ✅ Sort Status in descending alphabetical order
+                grouped = grouped.sort_values(by='Status', ascending=False)
+                
                 # Rename columns for display
                 grouped = grouped.rename(columns={
                     'Part No.': 'Part Number',
