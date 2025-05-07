@@ -158,6 +158,30 @@ if uploaded_file:
 
         st.subheader("🤖 Ask a Simple Question (Local Q&A)")
 
+        with st.expander("💡 What can I ask? (Click to expand)"):
+            st.markdown("""
+            **You can query by:**
+            
+            - 🔎 **Supplier Name**:  
+              _e.g._ `supplier atr`, `supplier hindustan aeronautics`
+        
+            - 🔧 **Part Number** (single value):  
+              _e.g._ `204X1217`, `A123456`
+        
+            - 📦 **Order Number** (single value):  
+              _e.g._ `2000143826`
+        
+            - ✈️ **Aircraft Code** (3 letters only):  
+              _e.g._ `abc` → interpreted as `VT-ABC`
+        
+            - 🚫 **Keyword Shortcuts**:  
+                - `not shipped` → shows items with GRN = 0 & no MAWB  
+                - `partial grn` → shows items where GRN < Order Qty  
+              
+            _Ask naturally, like: `supplier sat air`, `204X1217`, or `abc`._
+            """)
+
+
         user_question = st.text_input("Ask a question about your data:")
 
         if user_question:
