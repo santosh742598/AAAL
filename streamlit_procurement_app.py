@@ -340,11 +340,17 @@ if uploaded_file:
                 grouped['Status'] = grouped.apply(classify_line, axis=1)
             
                 st.write(f"📦 Items under Order No: {q.upper()}")
-                st.dataframe(grouped.rename(columns={
+                # Rename columns for display
+                grouped = grouped.rename(columns={
                     'Part No.': 'Part Number',
                     'Order Qty': 'Ordered Qty',
                     'GRN Qty': 'GRN Received Qty'
-                }))
+                })
+                
+                # Set desired column order
+                display_cols = ['Part Number', 'Description', 'Ordered Qty', 'GRN Received Qty', 'Status']
+                st.dataframe(grouped[display_cols])
+
 
 
 
