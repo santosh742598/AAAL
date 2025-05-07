@@ -300,34 +300,48 @@ if uploaded_file:
 
             elif len(q.split()) == 1 and q.upper() in df['Order No.'].str.upper().unique():
                 order_data = df[df['Order No.'].str.upper() == q.upper()]
-
-                # Extract Order Qty once per Part No
-                order_qty_info = order_data.drop_duplicates(subset=['Order No.', 'Part No.'])[
-                    ['Part No.', 'Supplier', 'Order Qty', 'Description']
-                ]
-
-                grn_sum = order_data.groupby(['Part No.'])['GRN Qty'].sum().reset_index()
-
-                grouped = pd.merge(order_qty_info, grn_sum, on='Part No.', how='left')
-
-
-                def item_status(row):
+            
+                # Show Aircraft involved
+                ac_regs = order_data['A/C Reg. No'].dropna().astype(str).str.strip().unique()
+                ac_text = ', '.join(ac_regs) if len(ac_regs) else "Not Available"
+                st.markdown(f"✈️ **Aircraft Reg. Involved**: {ac_text}")
+            
+                # Line-level classification
+                def classify_line(row):
                     if row['GRN Qty'] == 0:
-                        return "Not Yet Shipped"
+                        return "Not Shipped"
                     elif row['GRN Qty'] < row['Order Qty']:
                         return "Partial GRN"
                     else:
-                        return "Fully Received"
-
-
-                grouped['Status'] = grouped.apply(item_status, axis=1)
-
+                        return "Fully Shipped"
+            
+                order_data['Line Status'] = order_data.apply(classify_line, axis=1)
+                status_counts = order_data['Line Status'].value_counts()
+            
+                # Summary
+                st.markdown("📊 **Line Item Status Summary**")
+                st.markdown(f"- ✅ Fully Shipped: {status_counts.get('Fully Shipped', 0)}")
+                st.markdown(f"- ⚠️ Partial GRN: {status_counts.get('Partial GRN', 0)}")
+                st.markdown(f"- ❌ Not Shipped: {status_counts.get('Not Shipped', 0)}")
+            
+                # Show per item details
+                order_qty_info = order_data.drop_duplicates(subset=['Order No.', 'Part No.'])[
+                    ['Part No.', 'Supplier', 'Order Qty', 'Description']
+                ]
+                grn_sum = order_data.groupby(['Part No.'])['GRN Qty'].sum().reset_index()
+            
+                grouped = pd.merge(order_qty_info, grn_sum, on='Part No.', how='left')
+            
+                # Status per item
+                grouped['Status'] = grouped.apply(classify_line, axis=1)
+            
                 st.write(f"📦 Items under Order No: {q.upper()}")
                 st.dataframe(grouped.rename(columns={
                     'Part No.': 'Part Number',
                     'Order Qty': 'Ordered Qty',
                     'GRN Qty': 'GRN Received Qty'
                 }))
+
 
 
 
