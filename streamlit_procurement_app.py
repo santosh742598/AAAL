@@ -184,15 +184,32 @@ if uploaded_file:
                 st.write("📦 Orders with Partial GRN:")
                 st.dataframe(partial)
 
+
+
+
             elif "supplier" in q:
-                words = q.split()
-                supplier_name = [w for w in words if w.upper() in df['Supplier'].str.upper().unique()]
-                if supplier_name:
-                    result = df[df['Supplier'].str.upper().str.contains(supplier_name[0].upper())]
-                    st.write(f"📋 Orders for Supplier: {supplier_name[0]}")
+
+                supplier_column = df['Supplier'].dropna().astype(str)
+
+                query_cleaned = q.replace("supplier", "").strip().upper()
+
+                supplier_map = {s.upper(): s for s in supplier_column.unique()}
+
+                matches = [original for upper, original in supplier_map.items() if query_cleaned in upper]
+
+                if matches:
+
+                    result = df[df['Supplier'] == matches[0]]
+
+                    st.write(f"📋 Orders for Supplier: {matches[0]}")
+
                     st.dataframe(result)
+
                 else:
+
                     st.warning("❗ Supplier name not recognized in your question.")
+
+
 
             elif len(q.split()) == 1 and q.upper().strip() in df['Part No.'].astype(
                     str).str.upper().str.strip().unique():
@@ -280,7 +297,8 @@ if uploaded_file:
                     agg_dict = {
                         'Order Qty': 'sum',
                         'GRN Qty': 'sum',
-                        ac_col: 'first'
+                        ac_col: 'first',
+                        'Supplier': 'first'
                     }
                     if 'PO Date' in df.columns:
                         agg_dict['PO Date'] = 'first'
@@ -311,8 +329,50 @@ if uploaded_file:
                     st.markdown(f"- 🟡 **Partially Shipped Orders** ({len(partial)}): {', '.join(partial) if partial else 'None'}")
                     st.markdown(f"- 🔴 **Not Yet Shipped Orders** ({len(not_shipped)}): {', '.join(not_shipped) if not_shipped else 'None'}")
 
+
+                    # Line-level KPI summary
+                    related_lines = single_ac_df.copy()
+
+
+                    def classify_procurement(row):
+                        shipping_no = str(row['MAWB No. / Consignment No./  Bill of Lading No.']).strip()
+                        grn = row['GRN Qty']
+                        order = row['Order Qty']
+
+                        has_shipping = shipping_no != '' and shipping_no.lower() != 'nan'
+
+                        if not has_shipping and grn == 0:
+                            return "Not Shipped"
+                        elif has_shipping and grn == 0:
+                            return "Shipped – No GRN"
+                        elif has_shipping and 0 < grn < order:
+                            return "Partial GRN"
+                        elif has_shipping and grn >= order:
+                            return "Fully Received"
+                        else:
+                            return "Check Manually"
+
+
+                    related_lines = single_ac_df.copy()
+                    related_lines['Status'] = related_lines.apply(classify_procurement, axis=1)
+
+                    line_status_counts = related_lines['Status'].value_counts()
+                    total_items = related_lines.shape[0]
+
+                    st.markdown(f"### 📊 Line-Level Summary for `{aircraft_code}`")
+                    st.markdown(f"- 🟢 **Total line items**: {total_items}")
+                    st.markdown(f"- ❌ **Not Shipped**: {line_status_counts.get('Not Shipped', 0)}")
+                    st.markdown(f"- 🚚 **Shipped – No GRN**: {line_status_counts.get('Shipped – No GRN', 0)}")
+                    st.markdown(f"- ⚠️ **Partial GRN**: {line_status_counts.get('Partial GRN', 0)}")
+                    st.markdown(f"- ✅ **Fully Received**: {line_status_counts.get('Fully Received', 0)}")
+
                     with st.expander("📋 Full Order-wise Summary"):
-                        st.dataframe(ac_summary)
+                        display_cols = ['Order No.', 'Supplier', 'Order Qty', 'GRN Qty', 'Status']
+                        if 'PO Date' in ac_summary.columns:
+                            display_cols.append('PO Date')
+
+                        st.dataframe(ac_summary[display_cols])
+
 
 
 
