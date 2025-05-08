@@ -6,7 +6,7 @@ st.set_page_config(page_title="Procurement Monitoring Dashboard", layout="wide")
 
 st.title("✈️ Procurement Monitoring Dashboard")
 
-uploaded_file = st.file_uploader("Upload your Laminaar Excel file", type=["xlsx"])
+uploaded_file = st.file_uploader("Upload your Laminaar excel file in xlsx format(using order tracker module), Select correct order type, date to, date from", type=["xlsx"])
 
 if uploaded_file:
     try:
@@ -155,6 +155,111 @@ if uploaded_file:
                 'Order Qty': 'Ordered Qty',
                 'GRN Qty': 'GRN Received Qty'
             }))
+### a new module for giving details on date picker
+        st.subheader("📅 Full Date-wise Activity Report")
+
+        # Ensure date columns are in datetime format
+        df['Order Date'] = pd.to_datetime(df['Order Date'], errors='coerce')
+        df['MAWB Date / Consignment Date/  Bill of Lading Date'] = pd.to_datetime(
+            df['MAWB Date / Consignment Date/  Bill of Lading Date'], errors='coerce')
+        df['GRN Date'] = pd.to_datetime(df['GRN Date'], errors='coerce')
+        df['Stock-In Date'] = pd.to_datetime(df['Stock-In Date'], errors='coerce')
+
+        # Create a list of all relevant dates
+        all_dates = pd.concat([
+            df['Order Date'],
+            df['MAWB Date / Consignment Date/  Bill of Lading Date'],
+            df['GRN Date'],
+            df['Stock-In Date']
+        ]).dropna().dt.date.unique()
+
+        if len(all_dates) > 0:
+            selected_date = st.date_input("Select a date", min_value=min(all_dates), max_value=max(all_dates))
+
+            # Filter each activity type
+            new_orders = df[df['Order Date'].dt.date == selected_date][
+                ['Order No.', 'Part No.', 'Order Qty', 'A/C Reg. No', 'Supplier']]
+            shipped_items = df[df['MAWB Date / Consignment Date/  Bill of Lading Date'].dt.date == selected_date][
+                ['Order No.', 'Part No.', 'Order Qty']]
+            grn_data = df[df['GRN Date'].dt.date == selected_date]
+            grn_items = grn_data.groupby(['Order No.', 'Part No.']).agg({
+                'Order Qty': 'sum',
+                'GRN Qty': 'sum'
+            }).reset_index()
+
+
+            def grn_status(row):
+                if row['GRN Qty'] == 0:
+                    return "Not Shipped"
+                elif row['GRN Qty'] < row['Order Qty']:
+                    return "Partial GRN"
+                else:
+                    return "Fully Received"
+
+
+            grn_items['Status'] = grn_items.apply(grn_status, axis=1)
+
+            # Optional: custom sort order
+            status_order = ['Fully Received', 'Partial GRN', 'Not Shipped']
+            grn_items['Status'] = pd.Categorical(grn_items['Status'], categories=status_order, ordered=True)
+            grn_items = grn_items.sort_values(by='Status')
+            stock_in_items = df[df['Stock-In Date'].dt.date == selected_date][
+                ['Order No.', 'Part No.', 'Order Qty', 'GRN Qty', 'Stock Qty']]
+
+
+            def grn_status(row):
+                if row['GRN Qty'] == 0:
+                    return "Not Shipped"
+                elif row['GRN Qty'] < row['Order Qty']:
+                    return "Partial GRN"
+                else:
+                    return "Fully Received"
+
+
+            grn_items['Status'] = grn_items.apply(grn_status, axis=1)
+
+
+            def stock_status(row):
+                if row['Stock Qty'] == 0:
+                    return "Not Stocked"
+                elif row['Stock Qty'] < row['GRN Qty']:
+                    return "Partial Stocked"
+                else:
+                    return "Fully Stocked"
+
+
+            stock_in_items['Status'] = stock_in_items.apply(stock_status, axis=1)
+
+            # 📊 Summary Counts
+            st.markdown("### 📊 Summary for Selected Date")
+            st.markdown(f"- 🆕 **New Orders**: {len(new_orders)} line items")
+            st.markdown(f"- 🚚 **Shipped Items**: {len(shipped_items)}")
+            st.markdown(f"- ✅ **GRN Entries**: {len(grn_items)}")
+            st.markdown(f"- 📦 **Stock-In Entries**: {len(stock_in_items)}")
+
+            # Show tables
+            if not new_orders.empty:
+                st.markdown("### 🆕 New Orders")
+                st.dataframe(new_orders)
+
+            if not shipped_items.empty:
+                st.markdown("### 🚚 Shipped Items (MAWB Date)")
+                st.dataframe(shipped_items)
+
+            if not grn_items.empty:
+                st.markdown("### ✅ GRN Entries")
+                st.dataframe(grn_items[['Order No.', 'Part No.', 'Order Qty', 'GRN Qty', 'Status']])
+
+            if not stock_in_items.empty:
+                st.markdown("### 📦 Stock-In Entries")
+                st.dataframe(stock_in_items[['Order No.', 'Part No.', 'Order Qty', 'GRN Qty', 'Stock Qty', 'Status']])
+
+            if new_orders.empty and shipped_items.empty and grn_items.empty and stock_in_items.empty:
+                st.info(f"No activity found for {selected_date}")
+        else:
+            st.warning("⚠️ No valid date data found in the sheet.")
+### a module for asking a simple question
+
 
         st.subheader("🤖 Ask a Simple Question (Local Q&A)")
 
@@ -207,10 +312,6 @@ if uploaded_file:
                 partial = grouped[grouped['Order Qty'] != grouped['GRN Qty']]
                 st.write("📦 Orders with Partial GRN:")
                 st.dataframe(partial)
-
-
-
-
 
 
 
