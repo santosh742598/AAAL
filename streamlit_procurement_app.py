@@ -22,12 +22,29 @@ if uploaded_file:
         df['Order Qty'] = df['Order Qty'].fillna(0)
 
         # Order Summary
-        order_summary = df.groupby('Order No.').agg({
+        # Clean up keys
+        df['Order No.'] = df['Order No.'].astype(str).str.strip().str.upper()
+        df['Part No.'] = df['Part No.'].astype(str).str.strip().str.upper()
+
+        # Step 1: Drop duplicate Order Qty lines per (Order No., Part No.)
+        dedup = df.drop_duplicates(subset=['Order No.', 'Part No.'])[['Order No.', 'Part No.', 'Order Qty']]
+
+        # Step 2: Sum Order Qty once per part, per order
+        order_qty_sum = dedup.groupby('Order No.')['Order Qty'].sum().reset_index()
+
+        # Step 3: Sum GRN Qty normally (received in batches)
+        grn_qty_sum = df.groupby('Order No.')['GRN Qty'].sum().reset_index()
+
+        # Step 4: Other fields like Supplier and QA Status
+        others = df.groupby('Order No.').agg({
             'Supplier': 'first',
-            'Order Qty': 'sum',
-            'GRN Qty': 'sum',
             'QA Status': lambda x: ','.join(set(str(i).strip().lower() for i in x.dropna()))
         }).reset_index()
+
+        # Step 5: Merge all
+        order_summary = pd.merge(order_qty_sum, grn_qty_sum, on='Order No.')
+        order_summary = pd.merge(order_summary, others, on='Order No.')
+
 
         def classify(row):
             if row['GRN Qty'] == 0:
