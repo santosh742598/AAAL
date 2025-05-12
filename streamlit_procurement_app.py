@@ -71,7 +71,7 @@ def generate_daily_activity_pdf(report_date, new_orders, shipped_items, grn_item
         content.append(Paragraph(f"- {label}: <b>{count}</b> rows", styles['Normal']))
         content.append(Spacer(1, 2))
 
-    content.append(PageBreak())
+    ####content.append(PageBreak())
 
     # 🔹 Table Section Renderer (only if data exists)
     def add_table_section(title, data):
@@ -98,7 +98,7 @@ def generate_daily_activity_pdf(report_date, new_orders, shipped_items, grn_item
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ]))
         content.append(table)
-        content.append(PageBreak())
+        #######content.append(PageBreak())
 
     # 🔹 Conditional Rendering
     add_table_section("🆕 New Orders", new_orders)
