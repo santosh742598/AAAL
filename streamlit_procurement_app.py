@@ -1,6 +1,7 @@
 
 import streamlit as st
 import pandas as pd
+import io
 
 from reportlab.platypus import BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -377,12 +378,13 @@ if uploaded_file:
                 st.markdown("### ✅ GRN Entries")
                 st.dataframe(grn_items[['Order No.', 'Part No.', 'Description', 'Order Qty', 'GRN Qty', 'Status']])
 
+
             if not stock_in_items.empty:
                 st.markdown("### 📦 Stock-In Entries")
                 st.dataframe(stock_in_items[
                                  ['Order No.', 'Part No.', 'Description', 'Order Qty', 'GRN Qty', 'Stock Qty',
                                   'Status']])
-
+######### pdf downloaed button######################################
             if not all([new_orders.empty, shipped_items.empty, grn_items.empty, stock_in_items.empty]):
                 if st.button("📥 Download Full Daily Activity PDF"):
                     pdf_buffer = generate_daily_activity_pdf(selected_date, new_orders, shipped_items, grn_items,
@@ -390,8 +392,28 @@ if uploaded_file:
                     st.download_button("⬇️ Click to Download PDF", data=pdf_buffer,
                                        file_name=f"activity_report_{selected_date}.pdf", mime="application/pdf")
 
+################ for excel download utility############################
+            if not all([new_orders.empty, shipped_items.empty, grn_items.empty, stock_in_items.empty]):
+                excel_buffer = io.BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+                    if not new_orders.empty:
+                        new_orders.to_excel(writer, index=False, sheet_name='New Orders')
+                    if not shipped_items.empty:
+                        shipped_items.to_excel(writer, index=False, sheet_name='Shipped Items')
+                    if not grn_items.empty:
+                        grn_items.to_excel(writer, index=False, sheet_name='GRN Entries')
+                    if not stock_in_items.empty:
+                        stock_in_items.to_excel(writer, index=False, sheet_name='Stock-In Entries')
 
+                excel_buffer.seek(0)
 
+                st.download_button(
+                    label="📥 Download Full Daily Report (Excel)",
+                    data=excel_buffer,
+                    file_name=f"daily_report_{selected_date}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+####################3 for excel download utility##########################################
             if new_orders.empty and shipped_items.empty and grn_items.empty and stock_in_items.empty:
                 st.info(f"No activity found for {selected_date}")
         else:
