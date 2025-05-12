@@ -307,7 +307,7 @@ if uploaded_file:
             new_orders = df[df['Order Date'].dt.date == selected_date][
                 ['Order No.', 'Part No.', 'Order Qty', 'A/C Reg. No', 'Supplier']]
             shipped_items = df[df['MAWB Date / Consignment Date/  Bill of Lading Date'].dt.date == selected_date][
-                ['Order No.', 'Part No.', 'Order Qty', 'Supplier', 'Description',
+                ['Order No.', 'Part No.', 'Description','Order Qty', 'Supplier',
                  'MAWB No. / Consignment No./  Bill of Lading No.', 'Mode of Transport']]
             grn_data = df[df['GRN Date'].dt.date == selected_date]
             grn_items = grn_data.groupby(['Order No.', 'Part No.', 'Description']).agg({
