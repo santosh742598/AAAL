@@ -2,6 +2,115 @@
 import streamlit as st
 import pandas as pd
 
+from reportlab.platypus import BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib import colors
+from io import BytesIO
+import os
+
+def trim_text(text, max_len=16):
+    return str(text)[:max_len] if pd.notnull(text) else ""
+
+def add_header_footer(canvas, doc):
+    width, height = A4
+    canvas.saveState()
+
+    # ✈️ Header
+    canvas.setFont("NotoSans", 12)
+    canvas.setFillColor(colors.darkblue)
+    canvas.drawString(40, height - 30, "✈️ Procurement Monitoring Dashboard")
+
+    # Page Footer
+    canvas.setFont("NotoSans", 8)
+    canvas.setFillColor(colors.grey)
+    page_number_text = f"Page {canvas.getPageNumber()}"  # ✅ safe
+    canvas.drawRightString(width - 40, 20, page_number_text)
+
+    # Border
+    canvas.setStrokeColor(colors.lightgrey)
+    canvas.rect(25, 25, width - 50, height - 50, stroke=1)
+
+    canvas.restoreState()
+
+def generate_daily_activity_pdf(report_date, new_orders, shipped_items, grn_items, stock_in_items):
+    buffer = BytesIO()
+
+
+
+
+    # Font setup
+    font_path = os.path.join(os.getcwd(), "NotoSans-Regular.ttf")
+    pdfmetrics.registerFont(TTFont("NotoSans", font_path))
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='BlueTitle', parent=styles['Title'], textColor=colors.darkblue, fontName='NotoSans'))
+    styles.add(ParagraphStyle(name='GreenHeading', parent=styles['Heading3'], textColor=colors.darkgreen, fontName='NotoSans'))
+    styles['Normal'].fontName = 'NotoSans'
+
+    # Doc + layout
+    doc = BaseDocTemplate(buffer, pagesize=A4, leftMargin=30, rightMargin=30, topMargin=50, bottomMargin=40)
+    frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='normal')
+    template = PageTemplate(id='content', frames=frame, onPage=add_header_footer)
+    doc.addPageTemplates([template])
+
+    content = [Paragraph(f"📅 Daily Procurement Activity Report", styles['BlueTitle']), Spacer(1, 12),
+               Paragraph(f"🗓️ Date: {report_date}", styles['Normal']), Spacer(1, 6)]
+
+    # 🔹 Add Summary Page
+
+    summary_items = [
+        ("🆕 New Orders", len(new_orders)),
+        ("🚚 Shipped Items", len(shipped_items)),
+        ("✅ GRN Entries", len(grn_items)),
+        ("📦 Stock-In Entries", len(stock_in_items)),
+    ]
+    for label, count in summary_items:
+        content.append(Paragraph(f"- {label}: <b>{count}</b> rows", styles['Normal']))
+        content.append(Spacer(1, 2))
+
+    content.append(PageBreak())
+
+    # 🔹 Table Section Renderer (only if data exists)
+    def add_table_section(title, data):
+        if data.empty:
+            return
+    # ✅ Rename long MAWB column for PDF readability
+        if "MAWB No. / Consignment No./  Bill of Lading No." in data.columns:
+            data = data.rename(columns={"MAWB No. / Consignment No./  Bill of Lading No.": "MAWB/Consignment/BL No."})
+
+        content.append(Paragraph(f"{title} (Total: {len(data)})", styles['GreenHeading']))
+        content.append(Spacer(1, 6))
+
+        headers = list(data.columns)
+        rows = data.values.tolist()
+        trimmed_data = [headers] + [[trim_text(cell) for cell in row] for row in rows]
+
+        table = Table(trimmed_data, repeatRows=1)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#D3E9FF')),
+            ('GRID', (0, 0), (-1, -1), 0.25, colors.black),
+            ('FONTNAME', (0, 0), (-1, -1), 'NotoSans'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.darkblue),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        content.append(table)
+        content.append(PageBreak())
+
+    # 🔹 Conditional Rendering
+    add_table_section("🆕 New Orders", new_orders)
+    add_table_section("🚚 Shipped Items", shipped_items)
+    add_table_section("✅ GRN Entries", grn_items)
+    add_table_section("📦 Stock-In Entries", stock_in_items)
+
+    # 🔹 Build final PDF
+    doc.build(content)
+    buffer.seek(0)
+    return buffer
+
+
 st.set_page_config(page_title="Procurement Monitoring Dashboard", layout="wide")
 
 st.title("✈️ Procurement Monitoring Dashboard")
@@ -196,13 +305,11 @@ if uploaded_file:
             # Filter each activity type
             new_orders = df[df['Order Date'].dt.date == selected_date][
                 ['Order No.', 'Part No.', 'Order Qty', 'A/C Reg. No', 'Supplier']]
-            new_orders = df[df['Order Date'].dt.date == selected_date][
-                ['Order No.', 'Part No.', 'Order Qty', 'A/C Reg. No', 'Supplier']]
             shipped_items = df[df['MAWB Date / Consignment Date/  Bill of Lading Date'].dt.date == selected_date][
                 ['Order No.', 'Part No.', 'Order Qty', 'Supplier', 'Description',
                  'MAWB No. / Consignment No./  Bill of Lading No.', 'Mode of Transport']]
             grn_data = df[df['GRN Date'].dt.date == selected_date]
-            grn_items = grn_data.groupby(['Order No.', 'Part No.']).agg({
+            grn_items = grn_data.groupby(['Order No.', 'Part No.', 'Description']).agg({
                 'Order Qty': 'sum',
                 'GRN Qty': 'sum'
             }).reset_index()
@@ -223,8 +330,8 @@ if uploaded_file:
             status_order = ['Fully Received', 'Partial GRN', 'Not Shipped']
             grn_items['Status'] = pd.Categorical(grn_items['Status'], categories=status_order, ordered=True)
             grn_items = grn_items.sort_values(by='Status')
-            stock_in_items = df[df['Stock-In Date'].dt.date == selected_date][
-                ['Order No.', 'Part No.', 'Order Qty', 'GRN Qty', 'Stock Qty']]
+            stock_in_items = df[df['Stock-In Date'].dt.date == selected_date][['Order No.', 'Part No.', 'Description', 'Order Qty', 'GRN Qty', 'Stock Qty']]
+
 
 
             def grn_status(row):
@@ -268,17 +375,32 @@ if uploaded_file:
 
             if not grn_items.empty:
                 st.markdown("### ✅ GRN Entries")
-                st.dataframe(grn_items[['Order No.', 'Part No.', 'Order Qty', 'GRN Qty', 'Status']])
+                st.dataframe(grn_items[['Order No.', 'Part No.', 'Description', 'Order Qty', 'GRN Qty', 'Status']])
 
             if not stock_in_items.empty:
                 st.markdown("### 📦 Stock-In Entries")
-                st.dataframe(stock_in_items[['Order No.', 'Part No.', 'Order Qty', 'GRN Qty', 'Stock Qty', 'Status']])
+                st.dataframe(stock_in_items[
+                                 ['Order No.', 'Part No.', 'Description', 'Order Qty', 'GRN Qty', 'Stock Qty',
+                                  'Status']])
+
+            if not all([new_orders.empty, shipped_items.empty, grn_items.empty, stock_in_items.empty]):
+                if st.button("📥 Download Full Daily Activity PDF"):
+                    pdf_buffer = generate_daily_activity_pdf(selected_date, new_orders, shipped_items, grn_items,
+                                                             stock_in_items)
+                    st.download_button("⬇️ Click to Download PDF", data=pdf_buffer,
+                                       file_name=f"activity_report_{selected_date}.pdf", mime="application/pdf")
+
+
 
             if new_orders.empty and shipped_items.empty and grn_items.empty and stock_in_items.empty:
                 st.info(f"No activity found for {selected_date}")
         else:
             st.warning("⚠️ No valid date data found in the sheet.")
+
+
+
 ### a module for asking a simple question
+############################################
 
 
         st.subheader("🤖 Ask a Simple Question (Local Q&A)")
@@ -551,7 +673,6 @@ if uploaded_file:
                             return "Check Manually"
 
 
-                    related_lines = single_ac_df.copy()
                     related_lines['Status'] = related_lines.apply(classify_procurement, axis=1)
 
                     line_status_counts = related_lines['Status'].value_counts()
