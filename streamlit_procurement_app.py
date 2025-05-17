@@ -2,7 +2,9 @@
 import streamlit as st
 import pandas as pd
 import io
+import calendar
 
+from babel.numbers import format_currency
 from reportlab.platypus import BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import A4
@@ -14,6 +16,14 @@ import os
 
 def trim_text(text, max_len=16):
     return str(text)[:max_len] if pd.notnull(text) else ""
+
+
+# Format in Indian number system (lakhs/crores)
+# ✅ Format as Indian currency (rounded, no decimal)
+def format_inr(amount):
+    return format_currency(round(amount), 'INR', locale='en_IN')
+
+
 
 def add_header_footer(canvas, doc):
     width, height = A4
@@ -127,7 +137,20 @@ if uploaded_file:
         xls = pd.ExcelFile(uploaded_file)
         st.write("Available Sheets:", xls.sheet_names)
 
-        selected_sheet = st.selectbox("Select a sheet to process", xls.sheet_names)
+        ##selected_sheet = st.selectbox("Select a sheet to process", xls.sheet_names)
+
+        sheet_list = xls.sheet_names
+        cleaned_names = [name.strip() for name in sheet_list]
+        default_sheet = "PURCHASE_ORDER"
+
+        # Get the index of the cleaned sheet name
+        if default_sheet in cleaned_names:
+            default_index = cleaned_names.index(default_sheet)
+        else:
+            default_index = 0
+
+        # Show the dropdown with original sheet names but default index applied
+        selected_sheet = st.selectbox("Select a sheet to process", sheet_list, index=default_index)
 
         df = xls.parse(selected_sheet)
 
@@ -770,6 +793,91 @@ if uploaded_file:
 
 
 
+            elif any(kw in q for kw in ["monthly report", "procurement report", "report"]):
+
+                st.subheader("📆 Monthly Procurement Report")
+
+                # Convert columns safely
+                df['Order Date'] = pd.to_datetime(df['Order Date'], errors='coerce')
+                df['Unit Price'] = pd.to_numeric(df['Unit Price'], errors='coerce')
+                df['Currency'] = df['Currency'].astype(str).str.strip().str.upper()
+
+                # Extract month-year
+                df['Month-Year'] = df['Order Date'].dt.to_period('M').astype(str)
+                available_months = sorted(df['Month-Year'].dropna().unique())
+
+                # Month selection
+                selected_month = st.selectbox("Select Month", available_months)
+
+                # ✅ USD to INR rate input
+                usd_rate = st.number_input("Set USD to INR exchange rate", min_value=50.0, max_value=200.0, value=84.0,
+                                           step=0.5)
+
+                # Filter monthly data
+                monthly_data = df[df['Month-Year'] == selected_month].copy()
+
+                if not monthly_data.empty:
+                    # Normalize Currency
+                    monthly_data['Currency'] = monthly_data['Currency'].apply(
+                        lambda x: 'INR' if x in ['INR', 'INDIAN RUPEE'] else 'USD'
+                    )
+
+                    # Assign exchange rate
+                    monthly_data['Exchange Rate'] = monthly_data['Currency'].apply(
+                        lambda x: 1 if x == 'INR' else usd_rate)
+
+                    # Compute total INR
+                    monthly_data['Quantity'] = pd.to_numeric(monthly_data['Order Qty'], errors='coerce')
+                    monthly_data['Total (INR)'] = monthly_data['Quantity'] * monthly_data['Unit Price'] * monthly_data[
+                        'Exchange Rate']
+
+                    # Convert YYYY-MM to "Month Year"
+                    year, month = map(int, selected_month.split('-'))
+                    month_name = calendar.month_name[month]
+                    formatted_month = f"{month_name} {year}"
+
+
+                    # Show total INR just after exchange rate input
+                    total_inr = monthly_data['Total (INR)'].sum()
+
+                    # Format amount
+
+                    percent_75 = total_inr * 0.075
+                    formatted_75 = format_inr(percent_75)
+
+                    # ✅ Display bold, rounded output
+                    st.markdown(f"### 💰 **Total Procurement Value for {formatted_month}: {format_inr(total_inr)}**")
+                    st.markdown(f"### 📌 **7.5% of it is: {format_inr(percent_75)}**")
+
+                    # Prepare report
+                    report_df = monthly_data[[
+                        'Supplier', 'Order No.', 'Part No.', 'Description', 'Quantity',
+                        'Currency', 'Unit Price', 'Exchange Rate', 'Total (INR)'
+                    ]].copy()
+
+                    report_df.columns = ['Vendor', 'Purchase Order', 'Part No.', 'Description', 'Quantity',
+                                         'Currency', 'Unit Value', 'Exchange Rate', 'Total (INR)']
+
+                    report_df.insert(0, 'S. No.', range(1, len(report_df) + 1))
+
+                    st.dataframe(report_df)
+
+
+
+                    # Excel download
+                    buffer = io.BytesIO()
+                    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                        report_df.to_excel(writer, index=False, sheet_name='Monthly Report')
+                    buffer.seek(0)
+
+                    st.download_button(
+                        label="📥 Download Monthly Report (Excel)",
+                        data=buffer,
+                        file_name=f"Monthly_Procurement_Report_{selected_month}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                ##else:
+                ##    st.info(f"No procurement data found for {selected_month}")
 
 
 
