@@ -84,9 +84,13 @@ def generate_daily_activity_pdf(report_date, new_orders, shipped_items, grn_item
         content.append(Paragraph(f"{title} (Total: {len(data)})", styles['GreenHeading']))
         content.append(Spacer(1, 6))
 
-        headers = list(data.columns)
+        headers = ["Sl No."] + list(data.columns)  # Sl No. becomes first column
         rows = data.values.tolist()
-        trimmed_data = [headers] + [[trim_text(cell) for cell in row] for row in rows]
+
+        # Add serial number to each row
+        numbered_rows = [[str(i + 1)] + [trim_text(cell) for cell in row] for i, row in enumerate(rows)]
+
+        trimmed_data = [headers] + numbered_rows  # Final data with Sl No.
 
         table = Table(trimmed_data, repeatRows=1)
         table.setStyle(TableStyle([
@@ -135,6 +139,8 @@ if uploaded_file:
         # Clean up keys
         df['Order No.'] = df['Order No.'].astype(str).str.strip().str.upper()
         df['Part No.'] = df['Part No.'].astype(str).str.strip().str.upper()
+        df['Order Date'] = pd.to_datetime(df['Order Date'], errors='coerce')
+        df['Days Pending'] = (pd.Timestamp.today() - df['Order Date']).dt.days
 
         # Step 1: Drop duplicate Order Qty lines per (Order No., Part No.)
         dedup = df.drop_duplicates(subset=['Order No.', 'Part No.'])[['Order No.', 'Part No.', 'Order Qty']]
@@ -148,8 +154,11 @@ if uploaded_file:
         # Step 4: Other fields like Supplier and QA Status
         others = df.groupby('Order No.').agg({
             'Supplier': 'first',
+            'Order Date': 'first',
             'QA Status': lambda x: ','.join(set(str(i).strip().lower() for i in x.dropna()))
         }).reset_index()
+
+
 
         # Step 5: Merge all
         order_summary = pd.merge(order_qty_sum, grn_qty_sum, on='Order No.')
@@ -161,6 +170,10 @@ if uploaded_file:
                 return "Shipped - No GRN" if "approved" in row['QA Status'] else "No Item Shipped"
             elif row['GRN Qty'] < row['Order Qty']:
                 return "Shipped - Partial GRN"
+            elif row['GRN Qty'] < row['Order Qty']:
+                return "Shipped - Partial GRN"
+            elif row['GRN Qty'] > row['Order Qty']:
+                return "GRN > Ordered – Check"
             elif row['GRN Qty'] >= row['Order Qty'] and "approved" in row['QA Status']:
                 return "All OK"
             else:
@@ -169,16 +182,39 @@ if uploaded_file:
         order_summary['Status'] = order_summary.apply(classify, axis=1)
         status_counts = order_summary['Status'].value_counts()
 
-        st.subheader("📊 Order Summary")
-        st.dataframe(order_summary)
-
         st.subheader("📌 Status Breakdown")
+
+        total_orders = status_counts.sum()
+        st.markdown(f"📦 **Total Orders**: {total_orders}")
+
         for status, count in status_counts.items():
             st.markdown(f"- **{status}**: {count} orders")
 
+        # Format Order Date
+        order_summary['Order Date'] = pd.to_datetime(order_summary['Order Date'], errors='coerce').dt.strftime(
+            '%d-%m-%Y')
+
+        # Reorder columns (optional: place Order Date after Order No.)
+        cols = ['Order No.', 'Order Date'] + [col for col in order_summary.columns if
+                                              col not in ['Order No.', 'Order Date']]
+        st.subheader("📊 Order Summary")
+        st.dataframe(order_summary[cols])
+
         st.subheader("🔍 Filter by Status")
         selected_status = st.selectbox("Choose status to filter", options=order_summary['Status'].unique())
-        st.dataframe(order_summary[order_summary['Status'] == selected_status])
+        filtered_status_df = order_summary[order_summary['Status'] == selected_status].copy()
+        # ❌ No need to parse again — already formatted above
+    ##    st.dataframe(filtered_status_df)
+
+        max_supplier_len = 30  # you can reduce to 25 or increase as needed
+        filtered_status_df['Supplier'] = filtered_status_df['Supplier'].astype(str).apply(
+            lambda x: x[:max_supplier_len] + '…' if len(x) > max_supplier_len else x
+        )
+
+        # Reorder if needed
+        cols = ['Order No.', 'Order Date'] + [col for col in filtered_status_df.columns if
+                                              col not in ['Order No.', 'Order Date']]
+        st.dataframe(filtered_status_df[cols])
 
         st.subheader("🚫 Not Yet Shipped — By Order No")
 
@@ -204,11 +240,20 @@ if uploaded_file:
 
             # Show only selected columns
             columns_to_show = [
-                'Order No.', 'Part No.', 'Description', 'Supplier',
-                'Order Qty', 'GRN Qty', 'QA Status',
-                'MAWB No. / Consignment No./  Bill of Lading No.', 'Mode of Transport'
+                'Order No.', 'Order Date','Part No.', 'Description', 'Supplier',
+                'Order Qty',  'A/C Reg. No', 'REF. NO', 'Days Pending'
             ]
+
+            # Ensure columns exist
+            for col in columns_to_show:
+                if col not in filtered_unshipped.columns:
+                    filtered_unshipped[col] = ""
+
+            filtered_unshipped['Order Date'] = pd.to_datetime(filtered_unshipped['Order Date'],
+                                                              errors='coerce').dt.strftime('%d-%m-%Y')
+
             st.dataframe(filtered_unshipped[columns_to_show])
+
         else:
             st.success("✅ All orders have either shipment or GRN data.")
 
@@ -305,7 +350,9 @@ if uploaded_file:
 
             # Filter each activity type
             new_orders = df[df['Order Date'].dt.date == selected_date][
-                ['Order No.', 'Part No.', 'Order Qty', 'A/C Reg. No', 'Supplier']]
+                ['Order No.', 'REF. NO', 'Part No.', 'Order Qty', 'A/C Reg. No', 'Supplier']
+            ].rename(columns={'REF. NO': 'Reference No'})
+
             shipped_items = df[df['MAWB Date / Consignment Date/  Bill of Lading Date'].dt.date == selected_date][
                 ['Order No.', 'Part No.', 'Description','Order Qty', 'Supplier',
                  'MAWB No. / Consignment No./  Bill of Lading No.', 'Mode of Transport']]
@@ -333,18 +380,6 @@ if uploaded_file:
             grn_items = grn_items.sort_values(by='Status')
             stock_in_items = df[df['Stock-In Date'].dt.date == selected_date][['Order No.', 'Part No.', 'Description', 'Order Qty', 'GRN Qty', 'Stock Qty']]
 
-
-
-            def grn_status(row):
-                if row['GRN Qty'] == 0:
-                    return "Not Shipped"
-                elif row['GRN Qty'] < row['Order Qty']:
-                    return "Partial GRN"
-                else:
-                    return "Fully Received"
-
-
-            grn_items['Status'] = grn_items.apply(grn_status, axis=1)
 
 
             def stock_status(row):
@@ -565,7 +600,26 @@ if uploaded_file:
 
             elif len(q.split()) == 1 and q.upper() in df['Order No.'].str.upper().unique():
                 order_data = df[df['Order No.'].str.upper() == q.upper()]
-            
+
+
+                # SHOW ORDER DATE
+                order_date = pd.to_datetime(order_data['Order Date'].iloc[0], errors='coerce')
+
+                order_date_str = order_date.strftime("%d-%m-%Y") if pd.notnull(order_date) else "Unknown"
+
+                # Get total quantities
+                order_qty = order_data['Order Qty'].sum()
+                grn_qty = order_data['GRN Qty'].sum()
+
+                # Display accordingly
+                if grn_qty >= order_qty:
+                    st.markdown(f"📦 **Order No**: `{q.upper()}` 🗓️ **Order Date**: `{order_date_str}` ✅ Fully Shipped")
+                else:
+                    days_pending = (pd.Timestamp.today() - order_date).days if pd.notnull(order_date) else "--"
+                    st.markdown(
+                        f"📦 **Order No**: `{q.upper()}` 🗓️ **Order Date**: `{order_date_str}` 📆 Pending: `{days_pending}` days")
+
+
                 # Show Aircraft involved
                 ac_regs = order_data['A/C Reg. No'].dropna().astype(str).str.strip().unique()
                 ac_text = ', '.join(ac_regs) if len(ac_regs) else "Not Available"
