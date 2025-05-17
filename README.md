@@ -1,88 +1,86 @@
-
 # ✈️ Procurement Monitoring Dashboard
 
-This Streamlit application provides a comprehensive monitoring interface for Laminaar Excel-based procurement data.
-
-🌐 Live App Access + Laminaar Export Instructions
-You can access the live dashboard here:
-🔗 Go to Dashboard → alliance.streamlit.app
-
-📤 How to Export from Laminaar
-        1. To use this dashboard, export data from Laminaar ERP (e.g., ARMS® or similar modules) as follows:
-        2. Go to the Procurement Module → Select your filters (date range, supplier, order type)
-        3. Choose the Order Tracker or PO Tracker module
-        4. Export the results using the Excel (.xlsx) format
-        5. Ensure the downloaded file contains these sheets: PURCHASE_ORDER, ADV_EXCHANGE_ORDER (optional, for exchange items)
-        6. Upload or place this file into the dashboard interface
-        7. Make sure the file includes fields like: Order No., Part No., Order Qty, GRN Qty, Stock Qty, Supplier, A/C Reg. No, MAWB No., GRN Date, Stock-In Date
-
-## 📁 Upload Format
-
-      The app expects an `.xlsx` Excel file exported from your **Order Tracker module** with two key sheets:
-      - `ADV_EXCHANGE_ORDER`
-      - `PURCHASE_ORDER`
-
-      The sheets should contain columns like:
-      - `Order No.`, `Part No.`, `Order Qty`, `GRN Qty`, `Stock Qty`, `Supplier`, `A/C Reg. No`, `MAWB No.`, `GRN Date`, `Stock-In Date`, etc.
+A powerful Streamlit-based tool to analyze procurement activity using Excel reports from the Laminaar system. Supports tracking of orders, GRN, shipment status, daily and monthly activity, and exports to PDF and Excel formats.
 
 ---
 
-## ✅ Key Features
+## 📦 Features
 
-### 📊 Order Summary
-- Aggregated `Order Qty` and `GRN Qty` **without duplication**.
-- Accurate classification into:
-  - `All OK`
-  - `Shipped – Partial GRN`
-  - `Shipped – No GRN`
-  - `No Item Shipped`
-
-### 🚫 Not Yet Shipped
-- Lists orders with zero GRN and missing shipping details (MAWB No.).
-
-### 📦 Shipped But GRN Not Fully Done
-- Identifies orders with MAWB info but incomplete GRN receipts.
-
-### 🔧 Part Number Lookup
-- Drill down by `Part No.` to view GRN and PO status across orders.
-
-### 📅 Date-Wise Activity Report
-- Select a date to view:
-  - 🆕 New Orders
-  - 🚚 Shipped Items
-  - ✅ GRN Entries (summed across lines)
-  - 📦 Stock-In Entries
-
-### 🤖 Ask a Simple Question
-- Natural language support for:
-  - `supplier atr`
-  - `204X1217`
-  - `abc`
-  - `not shipped`
-  - `partial grn`
+- Upload and parse Laminaar Excel files
+- Visual summaries of:
+  - Unshipped orders
+  - Partial/complete GRN and stock-in entries
+  - Status by Order, Part Number, or Aircraft
+- 📅 Date-wise Activity Breakdown with full PDF & Excel export
+- 📆 Monthly Procurement Report with currency normalization (USD to INR)
+- 📤 Export:
+  - Daily PDF reports with summary and detailed tables
+  - Monthly PDF reports in **landscape** orientation with summary at the top
+  - Excel reports for both daily and monthly activities
 
 ---
 
-## 🛠️ How Grouping Works
+## 🛠️ Installation
 
-To avoid inflated quantities:
-- `Order Qty` is taken **once per (Order No., Part No.)**
-- `GRN Qty` and `Stock Qty` are **summed** across all batches
-- Statuses are derived cleanly using these totals
-
----
-
-## 💡 Deployment
-
-To run:
 ```bash
-streamlit run streamlit_app.py
+pip install -r requirements.txt
 ```
 
-Place additional pages in the `/pages` folder if using multi-page mode.
+**Dependencies include:**
+- `streamlit`
+- `pandas`
+- `xlsxwriter`
+- `reportlab`
+- `babel`
 
 ---
 
-## 📬 Support
+## ▶️ How to Run
 
-For questions or suggestions, contact the dashboard developer.
+```bash
+streamlit run streamlit_procurement_app.py
+```
+
+Then open in your browser at the local URL provided (typically `http://localhost:8501`).
+
+---
+
+## 📥 Input Format
+
+Upload an Excel file generated from Laminaar’s "Order Tracker" module, ensuring it contains relevant columns like:
+
+- `Order No.`, `Part No.`, `Order Qty`, `GRN Qty`
+- `MAWB No.`, `Stock Qty`, `Unit Price`, `Currency`
+
+---
+
+## 🧾 PDF Exports
+
+### Daily Report PDF
+- Generated in **portrait** mode
+- Includes summary counts and 4 sections:
+  - New Orders
+  - Shipped Items
+  - GRN Entries
+  - Stock-In Entries
+
+### Monthly Report PDF
+- Generated in **landscape** mode
+- Shows:
+  - Total value in INR
+  - 7.5% highlight
+  - Tabular breakdown (S. No., Vendor, PO, Part, Quantity, Value)
+
+---
+
+## 📌 Notes
+
+- Ensure font file `NotoSans-Regular.ttf` is present in the same directory for PDF generation.
+- For proper number formatting, exchange rate input is required for USD values in monthly reports.
+- Use the AI Q&A section to interactively filter data by supplier, PO, aircraft code, etc.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License – see the LICENSE file for details.

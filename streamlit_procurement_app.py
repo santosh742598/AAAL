@@ -7,7 +7,7 @@ import calendar
 from babel.numbers import format_currency
 from reportlab.platypus import BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib import colors
@@ -23,10 +23,47 @@ def trim_text(text, max_len=16):
 def format_inr(amount):
     return format_currency(round(amount), 'INR', locale='en_IN')
 
+def generate_monthly_report_pdf(selected_month, report_df, total_inr, percent_75):
+    from reportlab.platypus import SimpleDocTemplate
+
+    buffer = BytesIO()
+    doc = BaseDocTemplate(buffer, pagesize=landscape(A4), leftMargin=30, rightMargin=30, topMargin=50, bottomMargin=40)
+    frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='landscape')
+    template = PageTemplate(id='landscape_template', frames=frame, onPage=add_header_footer)
+    doc.addPageTemplates([template])
+
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='BlueTitle', parent=styles['Title'], textColor=colors.darkblue, fontName='NotoSans'))
+    styles.add(ParagraphStyle(name='NormalNoto', parent=styles['Normal'], fontName='NotoSans'))
+
+    content = [
+        Paragraph(f"📅 Monthly Procurement Report – {selected_month}", styles['BlueTitle']),
+        Spacer(1, 12),
+        Paragraph(f"💰 Total Procurement Value: <b>{format_inr(total_inr)}</b>", styles['NormalNoto']),
+        Paragraph(f"📌 7.5% Value: <b>{format_inr(percent_75)}</b>", styles['NormalNoto']),
+        Spacer(1, 12),
+    ]
+
+    # Table header + data
+    table_data = [list(report_df.columns)] + report_df.applymap(trim_text).values.tolist()
+
+    table = Table(table_data, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.black),
+        ('FONTNAME', (0, 0), (-1, -1), 'NotoSans'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    content.append(table)
+
+    doc.build(content)
+    buffer.seek(0)
+    return buffer
 
 
 def add_header_footer(canvas, doc):
-    width, height = A4
+    width, height = doc.pagesize
     canvas.saveState()
 
     # ✈️ Header
@@ -858,6 +895,12 @@ if uploaded_file:
                     report_df.columns = ['Vendor', 'Purchase Order', 'Part No.', 'Description', 'Quantity',
                                          'Currency', 'Unit Value', 'Exchange Rate', 'Total (INR)']
 
+                    # ✅ Format numeric columns to 2 decimal places
+                    report_df['Unit Value'] = report_df['Unit Value'].apply(
+                        lambda x: f"{x:,.2f}" if pd.notnull(x) else "")
+                    report_df['Total (INR)'] = report_df['Total (INR)'].apply(
+                        lambda x: f"{x:,.2f}" if pd.notnull(x) else "")
+
                     report_df.insert(0, 'S. No.', range(1, len(report_df) + 1))
 
                     st.dataframe(report_df)
@@ -876,6 +919,15 @@ if uploaded_file:
                         file_name=f"Monthly_Procurement_Report_{selected_month}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
+
+                    pdf_buffer = generate_monthly_report_pdf(formatted_month, report_df, total_inr, percent_75)
+                    st.download_button(
+                        label="📄 Download Monthly Report (PDF)",
+                        data=pdf_buffer,
+                        file_name=f"Monthly_Procurement_Report_{selected_month}.pdf",
+                        mime="application/pdf"
+                    )
+
                 ##else:
                 ##    st.info(f"No procurement data found for {selected_month}")
 
