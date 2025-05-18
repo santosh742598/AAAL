@@ -32,6 +32,10 @@ def generate_monthly_report_pdf(selected_month, report_df, total_inr, percent_75
     template = PageTemplate(id='landscape_template', frames=frame, onPage=add_header_footer)
     doc.addPageTemplates([template])
 
+    # Font setup (required!)
+    font_path = os.path.join(os.getcwd(), "NotoSans-Regular.ttf")
+    pdfmetrics.registerFont(TTFont("NotoSans", font_path))
+
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name='BlueTitle', parent=styles['Title'], textColor=colors.darkblue, fontName='NotoSans'))
     styles.add(ParagraphStyle(name='NormalNoto', parent=styles['Normal'], fontName='NotoSans'))
@@ -309,6 +313,7 @@ if uploaded_file:
                 if col not in filtered_unshipped.columns:
                     filtered_unshipped[col] = ""
 
+            filtered_unshipped = filtered_unshipped.copy()
             filtered_unshipped['Order Date'] = pd.to_datetime(filtered_unshipped['Order Date'],
                                                               errors='coerce').dt.strftime('%d-%m-%Y')
 
@@ -621,40 +626,85 @@ if uploaded_file:
 
 
 
+
             elif len(q.split()) == 1 and q.upper().strip() in df['Part No.'].astype(
                     str).str.upper().str.strip().unique():
+
                 part_data = df[df['Part No.'].astype(str).str.upper().str.strip() == q.upper().strip()]
 
-                # Extract 1 row per Order to get Order Qty correctly
+                # Extract 1 row per Order to get Order Qty, Supplier, etc.
+
                 order_qty_info = part_data.drop_duplicates(subset=['Order No.', 'Part No.'])[
+
                     ['Order No.', 'Part No.', 'Supplier', 'Order Qty', 'Description']
+
                 ]
 
-                # Now sum GRN qty separately
+                order_qty_info['Supplier'] = order_qty_info['Supplier'].apply(trim_text)  # ✅ Trim supplier to 16 chars
+
+                # GRN summary (received quantities)
+
                 grn_sum = part_data.groupby(['Order No.', 'Part No.'])['GRN Qty'].sum().reset_index()
 
-                # Merge both
+                # Unit price and currency
+
+                unit_info = part_data[['Order No.', 'Part No.', 'Unit Price', 'Currency']].drop_duplicates()
+
+                # Merge all
+
                 grouped = pd.merge(order_qty_info, grn_sum, on=['Order No.', 'Part No.'], how='left')
 
+                grouped = pd.merge(grouped, unit_info, on=['Order No.', 'Part No.'], how='left')
 
-                # Status logic
+
+                # Add status
+
                 def status(row):
+
                     if row['GRN Qty'] == 0:
+
                         return "Not Yet Shipped"
+
                     elif row['GRN Qty'] < row['Order Qty']:
+
                         return "Partial GRN"
+
                     else:
+
                         return "Fully Received"
 
 
                 grouped['Status'] = grouped.apply(status, axis=1)
 
+
+                def format_unit_price(row):
+                    if pd.isnull(row['Unit Price']):
+                        return "-"
+                    raw = str(row['Currency']).strip().upper()
+                    currency = (
+                        "INR" if "INR" in raw or "INDIAN" in raw else
+                        "USD" if "USD" in raw or "US DOLLAR" in raw else
+                        raw  # fallback
+                    )
+
+                    if currency in ["INR", "INDIAN RUPEE"]:
+                        return f"₹ {row['Unit Price']:.2f}"
+                    elif currency == "USD":
+                        return f"$ {row['Unit Price']:.2f}"
+                    else:
+                        return f"{currency} {row['Unit Price']:.2f}"  # fallback
+
+
+                grouped['Unit Price (Currency)'] = grouped.apply(format_unit_price, axis=1)
+
+                # Display
+
                 st.write(f"🔎 Results for Part No: {q.upper().strip()}")
-                st.dataframe(grouped.rename(columns={
-                    'Order No.': 'Order Number',
-                    'Order Qty': 'Ordered Qty',
-                    'GRN Qty': 'GRN Received Qty'
-                }))
+
+                display_cols = ['Order No.', 'Supplier', 'Part No.', 'Description', 'Order Qty', 'GRN Qty', 'Status',
+                                'Unit Price (Currency)']
+
+                st.dataframe(grouped[display_cols])
 
 
 
@@ -711,6 +761,7 @@ if uploaded_file:
                 order_qty_info = order_data.drop_duplicates(subset=['Order No.', 'Part No.'])[
                     ['Part No.', 'Order Qty', 'Description']
                 ]
+
                 grn_sum = order_data.groupby(['Part No.'])['GRN Qty'].sum().reset_index()
             
                 grouped = pd.merge(order_qty_info, grn_sum, on='Part No.', how='left')
@@ -900,6 +951,8 @@ if uploaded_file:
                         lambda x: f"{x:,.2f}" if pd.notnull(x) else "")
                     report_df['Total (INR)'] = report_df['Total (INR)'].apply(
                         lambda x: f"{x:,.2f}" if pd.notnull(x) else "")
+                    # After all processing and formatting:
+                    report_df.rename(columns={"Total (INR)": "Total (₹)"}, inplace=True)
 
                     report_df.insert(0, 'S. No.', range(1, len(report_df) + 1))
 
