@@ -1,11 +1,13 @@
+from io import BytesIO
+
 import streamlit as st
 import pandas as pd
 import io
 import calendar
 
-from .utils import trim_text, format_inr, classify, classify_line, po_part_status, grn_status, stock_status, classify_ac, classify_procurement, format_unit_price, status
+from .utils import trim_text, format_inr, classify, classify_line, po_part_status, grn_status, stock_status, \
+    classify_ac, classify_procurement, format_unit_price, determine_shipment_status
 from .pdf_utils import generate_monthly_report_pdf, generate_daily_activity_pdf
-
 
 
 def main():
@@ -22,7 +24,7 @@ def main():
             xls = pd.ExcelFile(uploaded_file)
             st.write("Available Sheets:", xls.sheet_names)
 
-            ##selected_sheet = st.selectbox("Select a sheet to process", xls.sheet_names)
+            ##selected_sheet = st.select box("Select a sheet to process", xls.sheet_names)
 
             sheet_list = xls.sheet_names
             cleaned_names = [name.strip() for name in sheet_list]
@@ -70,9 +72,11 @@ def main():
             order_summary = pd.merge(order_qty_sum, grn_qty_sum, on='Order No.')
             order_summary = pd.merge(order_summary, others, on='Order No.')
 
-
             order_summary['Status'] = order_summary.apply(classify, axis=1)
             status_counts = order_summary['Status'].value_counts()
+
+            ############################################################
+            ###########################################################
 
             st.subheader("📌 Status Breakdown")
 
@@ -89,9 +93,14 @@ def main():
             # Reorder columns (optional: place Order Date after Order No.)
             cols = ['Order No.', 'Order Date'] + [col for col in order_summary.columns if
                                                   col not in ['Order No.', 'Order Date']]
+
+            #######################################################################
+            #######################################################################
             st.subheader("📊 Order Summary")
             st.dataframe(order_summary[cols])
 
+            ######################################################################
+            #####################################################################
             st.subheader("🔍 Filter by Status")
             selected_status = st.selectbox("Choose status to filter", options=order_summary['Status'].unique())
             filtered_status_df = order_summary[order_summary['Status'] == selected_status].copy()
@@ -107,7 +116,8 @@ def main():
             cols = ['Order No.', 'Order Date'] + [col for col in filtered_status_df.columns if
                                                   col not in ['Order No.', 'Order Date']]
             st.dataframe(filtered_status_df[cols])
-
+            ########################################################################
+            ##########################################################################
             st.subheader("🚫 Not Yet Shipped — By Order No")
 
             # Identify orders with GRN Qty = 0 and no MAWB/shipping info
@@ -150,6 +160,9 @@ def main():
             else:
                 st.success("✅ All orders have either shipment or GRN data.")
 
+            #################################################################################
+            ###############################################################################
+
             st.subheader("📦 Shipped but GRN Not Fully Done — By Order No")
 
             # Group by Order No + Part No to compare totals
@@ -184,7 +197,8 @@ def main():
                 ]])
             else:
                 st.success("✅ All shipped items have matching GRN.")
-
+            ################################################################################
+            ####################################################################################
             st.subheader("🔎 Search by Part Number — PO Wise Status")
 
             all_parts = sorted(df['Part No.'].dropna().unique())
@@ -202,8 +216,6 @@ def main():
                     'Description': 'first'
                 }).reset_index()
 
-
-
                 part_po_wise['Status'] = part_po_wise.apply(po_part_status, axis=1)
 
                 st.dataframe(part_po_wise.rename(columns={
@@ -211,6 +223,9 @@ def main():
                     'Order Qty': 'Ordered Qty',
                     'GRN Qty': 'GRN Received Qty'
                 }))
+
+            ########################################################################
+            ##########################################################################
             ### a new module for giving details on date picker
             st.subheader("📅 Full Date-wise Activity Report")
 
@@ -246,8 +261,6 @@ def main():
                     'GRN Qty': 'sum'
                 }).reset_index()
 
-
-
                 grn_items['Status'] = grn_items.apply(grn_status, axis=1)
 
                 # Optional: custom sort order
@@ -256,8 +269,6 @@ def main():
                 grn_items = grn_items.sort_values(by='Status')
                 stock_in_items = df[df['Stock-In Date'].dt.date == selected_date][
                     ['Order No.', 'Part No.', 'Description', 'Order Qty', 'GRN Qty', 'Stock Qty']]
-
-
 
                 stock_in_items['Status'] = stock_in_items.apply(stock_status, axis=1)
 
@@ -296,7 +307,7 @@ def main():
 
                 ################ for excel download utility############################
                 if not all([new_orders.empty, shipped_items.empty, grn_items.empty, stock_in_items.empty]):
-                    excel_buffer = io.BytesIO()
+                    excel_buffer: BytesIO = io.BytesIO()
                     with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
                         if not new_orders.empty:
                             new_orders.to_excel(writer, index=False, sheet_name='New Orders')
@@ -321,8 +332,9 @@ def main():
             else:
                 st.warning("⚠️ No valid date data found in the sheet.")
 
+            ########################################################################
+            ############################################################################
             ### a module for asking a simple question
-            ############################################
 
             st.subheader("🤖 Ask a Simple Question (Local Q&A)")
 
@@ -376,7 +388,6 @@ def main():
                     st.dataframe(partial)
 
 
-
                 elif "supplier" in q:
 
                     query_cleaned = q.replace("supplier", "").strip().upper()
@@ -420,11 +431,6 @@ def main():
                         st.warning("❗ Supplier name not recognized in your question.")
 
 
-
-
-
-
-
                 elif len(q.split()) == 1 and q.upper().strip() in df['Part No.'].astype(
                         str).str.upper().str.strip().unique():
 
@@ -455,11 +461,7 @@ def main():
 
                     grouped = pd.merge(grouped, unit_info, on=['Order No.', 'Part No.'], how='left')
 
-
-
-                    grouped['Status'] = grouped.apply(status, axis=1)
-
-
+                    grouped['Status'] = grouped.apply(determine_shipment_status, axis=1)
 
                     grouped['Unit Price (Currency)'] = grouped.apply(format_unit_price, axis=1)
 
@@ -472,7 +474,6 @@ def main():
                                     'Unit Price (Currency)']
 
                     st.dataframe(grouped[display_cols])
-
 
 
                 elif len(q.split()) == 1 and q.upper() in df['Order No.'].str.upper().unique():
@@ -504,8 +505,6 @@ def main():
                     supplier = order_data['Supplier'].dropna().unique()
                     supplier_name = supplier[0] if len(supplier) == 1 else ', '.join(supplier)
                     st.markdown(f"🏢 **Supplier**: {supplier_name}")
-
-
 
                     order_data['Line Status'] = order_data.apply(classify_line, axis=1)
                     status_counts = order_data['Line Status'].value_counts()
@@ -544,10 +543,6 @@ def main():
                     st.dataframe(grouped[display_cols])
 
 
-
-
-
-
                 elif len(q) == 3 and q.isalpha():
                     aircraft_code = f"VT-{q.upper()}"
                     ac_col = 'A/C Reg. No'
@@ -570,8 +565,6 @@ def main():
                             agg_dict['PO Date'] = 'first'
 
                         ac_summary = single_ac_df.groupby('Order No.').agg(agg_dict).reset_index()
-
-
 
                         ac_summary['Status'] = ac_summary.apply(classify_ac, axis=1)
 
@@ -596,8 +589,6 @@ def main():
                         # Line-level KPI summary
                         related_lines = single_ac_df.copy()
 
-
-
                         related_lines['Status'] = related_lines.apply(classify_procurement, axis=1)
 
                         line_status_counts = related_lines['Status'].value_counts()
@@ -618,9 +609,9 @@ def main():
                             st.dataframe(ac_summary[display_cols])
 
 
-
                 elif any(kw in q for kw in ["monthly report", "procurement report", "report"]):
-
+                    ########################################################################
+                    ############################################################################
                     st.subheader("📆 Monthly Procurement Report")
 
                     # Convert columns safely
@@ -663,6 +654,9 @@ def main():
                         year, month = map(int, selected_month.split('-'))
                         month_name = calendar.month_name[month]
                         formatted_month = f"{month_name} {year}"
+                        # Deduplicate by Order No. + Part No. + Unit Price + Currency to prevent over counting
+                        monthly_data = monthly_data.drop_duplicates(
+                            subset=['Order No.', 'Part No.', 'Unit Price', 'Currency'])
 
                         # Show total INR just after exchange rate input
                         total_inr = monthly_data['Total (INR)'].sum()
@@ -670,11 +664,17 @@ def main():
                         # Format amount
 
                         percent_75 = total_inr * 0.075
-                        formatted_75 = format_inr(percent_75)
+
+                        # Calculate last day of the selected month
+                        last_day = pd.to_datetime(selected_month + "-01") + pd.offsets.MonthEnd(0)
+
+                        # Create a human-readable exchange info line
+                        exchange_info_line = f"Exchange rate used as on {last_day.strftime('%d-%m-%Y')}: USD 1 = INR {usd_rate:.2f}"
 
                         # ✅ Display bold, rounded output
                         st.markdown(f"### 💰 **Total Procurement Value for {formatted_month}: {format_inr(total_inr)}**")
                         st.markdown(f"### 📌 **7.5% of it is: {format_inr(percent_75)}**")
+                        st.markdown(f"### 💱 {exchange_info_line}")
 
                         # Prepare report
                         report_df = monthly_data[[
@@ -710,7 +710,8 @@ def main():
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
 
-                        pdf_buffer = generate_monthly_report_pdf(formatted_month, report_df, total_inr, percent_75)
+                        pdf_buffer = generate_monthly_report_pdf(formatted_month, report_df, total_inr, percent_75,
+                                                                 exchange_info_line)
                         st.download_button(
                             label="📄 Download Monthly Report (PDF)",
                             data=pdf_buffer,
@@ -734,7 +735,6 @@ def main():
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
-
 
 
 if __name__ == "__main__":

@@ -2,13 +2,16 @@
 from babel.numbers import format_currency
 import pandas as pd
 
+
 # 🔹 Used throughout the app to trim long strings in DataFrames before displaying or exporting
 def trim_text(text, max_len=16):
     return str(text)[:max_len] if pd.notnull(text) else ""
 
+
 # 🔹 Used in monthly report to format total INR values as ₹ with Indian-style formatting
 def format_inr(amount):
     return format_currency(round(amount), 'INR', locale='en_IN')
+
 
 # 🔹 Used in Order Summary status classification (based on GRN quantity & QA Status)
 def classify(row):
@@ -35,6 +38,7 @@ def classify_line(row):
     else:
         return "Fully Shipped"
 
+
 # 🔹 Used in Part Number search section to classify order-wise GRN status
 def po_part_status(row):
     if row['GRN Qty'] == 0:
@@ -43,6 +47,7 @@ def po_part_status(row):
         return "Partial GRN"
     else:
         return "Fully Received"
+
 
 # 🔹 Used in GRN tab (date-wise report) to classify GRN entries
 def grn_status(row):
@@ -53,6 +58,7 @@ def grn_status(row):
     else:
         return "Fully Received"
 
+
 # 🔹 Used in Stock-In entries (date-wise) to classify stock status
 def stock_status(row):
     if row['Stock Qty'] == 0:
@@ -62,6 +68,7 @@ def stock_status(row):
     else:
         return "Fully Stocked"
 
+
 # 🔹 Used in Aircraft Code query (e.g., VT-XYZ) — classifies shipping at order level
 def classify_ac(row):
     if row['GRN Qty'] == 0:
@@ -70,6 +77,7 @@ def classify_ac(row):
         return "Partially Shipped"
     else:
         return "Fully Shipped"
+
 
 # 🔹 Used in Aircraft Line-level breakdown — considers both shipping & GRN for fine-grained status
 def classify_procurement(row):
@@ -90,6 +98,7 @@ def classify_procurement(row):
     else:
         return "Check Manually"
 
+
 # 🔹 Used when showing unit price in Part No. search results (with ₹ or $ prefix)
 def format_unit_price(row):
     if pd.isnull(row['Unit Price']):
@@ -108,8 +117,9 @@ def format_unit_price(row):
     else:
         return f"{currency} {row['Unit Price']:.2f}"  # fallback
 
+
 # 🔹 Used in Part No. search section to generate Status column from GRN comparison
-def status(row):
+def determine_shipment_status(row):
     if row['GRN Qty'] == 0:
         return "Not Yet Shipped"
     elif row['GRN Qty'] < row['Order Qty']:

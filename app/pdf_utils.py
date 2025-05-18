@@ -33,7 +33,7 @@ def add_header_footer(canvas, doc):
 
 
 
-def generate_monthly_report_pdf(selected_month, report_df, total_inr, percent_75):
+def generate_monthly_report_pdf(selected_month, report_df, total_inr, percent_75, exchange_info_line):
     from reportlab.platypus import SimpleDocTemplate
 
     buffer = BytesIO()
@@ -55,6 +55,8 @@ def generate_monthly_report_pdf(selected_month, report_df, total_inr, percent_75
         Spacer(1, 12),
         Paragraph(f"💰 Total Procurement Value: <b>{format_inr(total_inr)}</b>", styles['NormalNoto']),
         Paragraph(f"📌 7.5% Value: <b>{format_inr(percent_75)}</b>", styles['NormalNoto']),
+        Paragraph(f"💱 {exchange_info_line}", styles['NormalNoto']),
+
         Spacer(1, 12),
     ]
 
