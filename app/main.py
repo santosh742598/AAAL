@@ -249,17 +249,44 @@ def main():
 
                 # Filter each activity type
                 new_orders = df[df['Order Date'].dt.date == selected_date][
-                    ['Order No.', 'REF. NO', 'Part No.', 'Description', 'Order Qty', 'A/C Reg. No', 'Supplier']
+                    [
+                        'Order No.',
+                        'REF. NO',
+                        'Part No.',
+                        'Description',
+                        'Order Qty',
+                        'A/C Reg. No',
+                        'Supplier',
+                        'PRIORITY',
+                    ]
                 ].rename(columns={'REF. NO': 'Reference No'})
 
-                shipped_items = df[df['MAWB Date / Consignment Date/  Bill of Lading Date'].dt.date == selected_date][
-                    ['Order No.', 'Part No.', 'Description', 'Order Qty', 'Supplier',
-                     'MAWB No. / Consignment No./  Bill of Lading No.', 'Mode of Transport']]
-                grn_data = df[df['GRN Date'].dt.date == selected_date]
-                grn_items = grn_data.groupby(['Order No.', 'Part No.', 'Description']).agg({
-                    'Order Qty': 'sum',
-                    'GRN Qty': 'sum'
-                }).reset_index()
+                shipped_items = df[
+                    df['MAWB Date / Consignment Date/  Bill of Lading Date'].dt.date
+                    == selected_date
+                ][
+                    [
+                        'Order No.',
+                        'Part No.',
+                        'Description',
+                        'Order Qty',
+                        'Supplier',
+                        'MAWB No. / Consignment No./  Bill of Lading No.',
+                        'Mode of Transport',
+                        'PRIORITY',
+                    ]
+                ]
+
+                grn_items = df[df['GRN Date'].dt.date == selected_date][
+                    [
+                        'Order No.',
+                        'Part No.',
+                        'Description',
+                        'Order Qty',
+                        'GRN Qty',
+                        'PRIORITY',
+                    ]
+                ]
 
                 grn_items['Status'] = grn_items.apply(grn_status, axis=1)
 
@@ -268,7 +295,16 @@ def main():
                 grn_items['Status'] = pd.Categorical(grn_items['Status'], categories=status_order, ordered=True)
                 grn_items = grn_items.sort_values(by='Status')
                 stock_in_items = df[df['Stock-In Date'].dt.date == selected_date][
-                    ['Order No.', 'Part No.', 'Description', 'Order Qty', 'GRN Qty', 'Stock Qty']]
+                    [
+                        'Order No.',
+                        'Part No.',
+                        'Description',
+                        'Order Qty',
+                        'GRN Qty',
+                        'Stock Qty',
+                        'PRIORITY',
+                    ]
+                ]
 
                 stock_in_items['Status'] = stock_in_items.apply(stock_status, axis=1)
 
