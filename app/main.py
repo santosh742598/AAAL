@@ -249,7 +249,7 @@ def main():
 
                 # Filter each activity type
                 new_orders = df[df['Order Date'].dt.date == selected_date][
-                    ['Order No.', 'REF. NO', 'Part No.', 'Order Qty', 'A/C Reg. No', 'Supplier']
+                    ['Order No.', 'REF. NO', 'Part No.', 'Description', 'Order Qty', 'A/C Reg. No', 'Supplier']
                 ].rename(columns={'REF. NO': 'Reference No'})
 
                 shipped_items = df[df['MAWB Date / Consignment Date/  Bill of Lading Date'].dt.date == selected_date][
