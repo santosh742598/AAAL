@@ -17,6 +17,7 @@ A powerful Streamlit-based tool to analyze procurement activity using Excel repo
   - Daily PDF reports with summary and detailed tables
   - Monthly PDF reports in **landscape** orientation with summary at the top
   - Excel reports for both daily and monthly activities
+- 🟠 Rows marked with **AOG** in the **PRIORITY** column are highlighted in orange in PDF tables
 
 ---
 

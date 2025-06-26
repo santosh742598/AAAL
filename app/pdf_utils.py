@@ -33,7 +33,7 @@ def add_header_footer(canvas, doc):
 
 
 
-def generate_monthly_report_pdf(selected_month, report_df, total_inr, percent_75, exchange_info_line):
+def generate_monthly_report_pdf(selected_month, report_df, total_inr, percent_75, exchange_info_line, highlight_rows=None):
     from reportlab.platypus import SimpleDocTemplate
 
     buffer = BytesIO()
@@ -64,13 +64,17 @@ def generate_monthly_report_pdf(selected_month, report_df, total_inr, percent_75
     table_data = [list(report_df.columns)] + report_df.applymap(trim_text).values.tolist()
 
     table = Table(table_data, repeatRows=1)
-    table.setStyle(TableStyle([
+    style = TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
         ('GRID', (0, 0), (-1, -1), 0.25, colors.black),
         ('FONTNAME', (0, 0), (-1, -1), 'NotoSans'),
         ('FONTSIZE', (0, 0), (-1, -1), 8),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
+    ])
+    if highlight_rows:
+        for row in highlight_rows:
+            style.add('BACKGROUND', (0, row + 1), (-1, row + 1), colors.orange)
+    table.setStyle(style)
     content.append(table)
 
     doc.build(content)
@@ -134,14 +138,19 @@ def generate_daily_activity_pdf(report_date, new_orders, shipped_items, grn_item
         trimmed_data = [headers] + numbered_rows  # Final data with Sl No.
 
         table = Table(trimmed_data, repeatRows=1)
-        table.setStyle(TableStyle([
+        style = TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#D3E9FF')),
             ('GRID', (0, 0), (-1, -1), 0.25, colors.black),
             ('FONTNAME', (0, 0), (-1, -1), 'NotoSans'),
             ('FONTSIZE', (0, 0), (-1, -1), 8),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.darkblue),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ]))
+        ])
+        if 'PRIORITY' in data.columns:
+            for idx, val in enumerate(data['PRIORITY'].astype(str).str.upper()):
+                if val == 'AOG':
+                    style.add('BACKGROUND', (0, idx + 1), (-1, idx + 1), colors.orange)
+        table.setStyle(style)
         content.append(table)
         #######content.append(PageBreak())
 
