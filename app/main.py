@@ -657,6 +657,17 @@ def main():
                         # Deduplicate by Order No. + Part No. + Unit Price + Currency to prevent over counting
                         monthly_data = monthly_data.drop_duplicates(
                             subset=['Order No.', 'Part No.', 'Unit Price', 'Currency'])
+                        monthly_data.reset_index(drop=True, inplace=True)
+
+                        aog_rows = []
+                        if 'PRIORITY' in monthly_data.columns:
+                            aog_rows = [
+                                i
+                                for i, val in enumerate(
+                                    monthly_data['PRIORITY'].astype(str).str.upper()
+                                )
+                                if val == 'AOG'
+                            ]
 
                         # Show total INR just after exchange rate input
                         total_inr = monthly_data['Total (INR)'].sum()
@@ -710,8 +721,14 @@ def main():
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
 
-                        pdf_buffer = generate_monthly_report_pdf(formatted_month, report_df, total_inr, percent_75,
-                                                                 exchange_info_line)
+                        pdf_buffer = generate_monthly_report_pdf(
+                            formatted_month,
+                            report_df,
+                            total_inr,
+                            percent_75,
+                            exchange_info_line,
+                            highlight_rows=aog_rows,
+                        )
                         st.download_button(
                             label="📄 Download Monthly Report (PDF)",
                             data=pdf_buffer,
