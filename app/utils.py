@@ -13,6 +13,19 @@ def format_inr(amount):
     return format_currency(round(amount), 'INR', locale='en_IN')
 
 
+# 🔹 Used to display dates in long form like "26th Jun 2025"
+def format_long_date(date_obj):
+    if isinstance(date_obj, str):
+        date_obj = pd.to_datetime(date_obj, errors='coerce')
+    if isinstance(date_obj, pd.Timestamp):
+        date_obj = date_obj.date()
+    if pd.isnull(date_obj):
+        return ""
+    day = date_obj.day
+    suffix = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return f"{day}{suffix} {date_obj.strftime('%b %Y')}"
+
+
 # 🔹 Used in Order Summary status classification (based on GRN quantity & QA Status)
 def classify(row):
     if row['GRN Qty'] == 0:

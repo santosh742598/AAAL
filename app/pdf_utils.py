@@ -7,7 +7,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib import colors
 from io import BytesIO
 import os
-from .utils import format_inr, trim_text
+from .utils import format_inr, trim_text, format_long_date
 
 
 def add_header_footer(canvas, doc):
@@ -102,8 +102,12 @@ def generate_daily_activity_pdf(report_date, new_orders, shipped_items, grn_item
     template = PageTemplate(id='content', frames=frame, onPage=add_header_footer)
     doc.addPageTemplates([template])
 
-    content = [Paragraph(f"📅 Daily Procurement Activity Report", styles['BlueTitle']), Spacer(1, 12),
-               Paragraph(f"🗓️ Date: {report_date}", styles['Normal']), Spacer(1, 6)]
+    content = [
+        Paragraph("📅 Daily Procurement Activity Report", styles['BlueTitle']),
+        Spacer(1, 12),
+        Paragraph(f"🗓️ Date: {format_long_date(report_date)}", styles['Normal']),
+        Spacer(1, 6),
+    ]
 
     # 🔹 Add Summary Page
 
