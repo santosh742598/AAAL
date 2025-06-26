@@ -119,7 +119,7 @@ def generate_daily_activity_pdf(report_date, new_orders, shipped_items, grn_item
 
     ####content.append(PageBreak())
 # 🔹 Table Section Renderer (only if data exists)
-    def add_table_section(title, data):
+    def add_table_section(title, data, drop_priority=False):
         if data.empty:
             return
     # ✅ Rename long MAWB column for PDF readability
@@ -128,6 +128,13 @@ def generate_daily_activity_pdf(report_date, new_orders, shipped_items, grn_item
 
         content.append(Paragraph(f"{title} (Total: {len(data)})", styles['GreenHeading']))
         content.append(Spacer(1, 6))
+
+        # Capture AOG rows before optionally dropping PRIORITY column
+        highlight_mask = None
+        if "PRIORITY" in data.columns:
+            highlight_mask = data["PRIORITY"].astype(str).str.upper() == "AOG"
+            if drop_priority:
+                data = data.drop(columns=["PRIORITY"])
 
         headers = ["Sl No."] + list(data.columns)  # Sl No. becomes first column
         rows = data.values.tolist()
@@ -146,17 +153,17 @@ def generate_daily_activity_pdf(report_date, new_orders, shipped_items, grn_item
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.darkblue),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ])
-        if 'PRIORITY' in data.columns:
-            for idx, val in enumerate(data['PRIORITY'].astype(str).str.upper()):
-                if val == 'AOG':
+        if highlight_mask is not None:
+            for idx, is_aog in enumerate(highlight_mask):
+                if is_aog:
                     style.add('BACKGROUND', (0, idx + 1), (-1, idx + 1), colors.orange)
         table.setStyle(style)
         content.append(table)
         #######content.append(PageBreak())
 
     # 🔹 Conditional Rendering
-    add_table_section("🆕 New Orders", new_orders)
-    add_table_section("🚚 Shipped Items", shipped_items)
+    add_table_section("🆕 New Orders", new_orders, drop_priority=True)
+    add_table_section("🚚 Shipped Items", shipped_items, drop_priority=True)
     add_table_section("✅ GRN Entries", grn_items)
     add_table_section("📦 Stock-In Entries", stock_in_items)
 
