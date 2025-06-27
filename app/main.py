@@ -16,30 +16,33 @@ def main():
     st.title("✈️ Procurement Monitoring Dashboard")
 
     uploaded_file = st.file_uploader(
-        "Upload your Laminaar excel file in xlsx format(using order tracker module), Select correct order type, date to, date from",
-        type=["xlsx"])
+        "Upload your Laminaar excel file in xlsx, xls, or csv format(using order tracker module), Select correct order type, date to, date from",
+        type=["xlsx", "xls", "csv"])
 
     if uploaded_file:
         try:
-            xls = pd.ExcelFile(uploaded_file)
-            st.write("Available Sheets:", xls.sheet_names)
+            file_extension = uploaded_file.name.split('.')[-1].lower()
 
-            ##selected_sheet = st.select box("Select a sheet to process", xls.sheet_names)
+            if file_extension == "csv":
+                df = pd.read_csv(uploaded_file)
+            elif file_extension in ["xls", "xlsx"]:
+                xls = pd.ExcelFile(uploaded_file)
+                st.write("Available Sheets:", xls.sheet_names)
 
-            sheet_list = xls.sheet_names
-            cleaned_names = [name.strip() for name in sheet_list]
-            default_sheet = "PURCHASE_ORDER"
+                sheet_list = xls.sheet_names
+                cleaned_names = [name.strip() for name in sheet_list]
+                default_sheet = "PURCHASE_ORDER"
 
-            # Get the index of the cleaned sheet name
-            if default_sheet in cleaned_names:
-                default_index = cleaned_names.index(default_sheet)
+                if default_sheet in cleaned_names:
+                    default_index = cleaned_names.index(default_sheet)
+                else:
+                    default_index = 0
+
+                selected_sheet = st.selectbox("Select a sheet to process", sheet_list, index=default_index)
+                df = xls.parse(selected_sheet)
             else:
-                default_index = 0
-
-            # Show the dropdown with original sheet names but default index applied
-            selected_sheet = st.selectbox("Select a sheet to process", sheet_list, index=default_index)
-
-            df = xls.parse(selected_sheet)
+                st.error("Unsupported file type. Please upload an XLSX, XLS, or CSV file.")
+                st.stop()
 
             df.columns = df.columns.str.strip()
             df['GRN Qty'] = df['GRN Qty'].fillna(0)
